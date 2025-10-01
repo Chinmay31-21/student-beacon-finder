@@ -10,6 +10,31 @@ import { AlertCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
+
+// Validation schema
+const itemSchema = z.object({
+  title: z.string()
+    .trim()
+    .min(1, { message: "Title is required" })
+    .max(200, { message: "Title must be less than 200 characters" }),
+  description: z.string()
+    .trim()
+    .min(1, { message: "Description is required" })
+    .max(1000, { message: "Description must be less than 1000 characters" }),
+  category: z.string()
+    .min(1, { message: "Category is required" }),
+  location: z.string()
+    .max(200, { message: "Location must be less than 200 characters" })
+    .optional(),
+  date: z.string()
+    .min(1, { message: "Date is required" }),
+  contactInfo: z.string()
+    .trim()
+    .min(1, { message: "Contact information is required" })
+    .email({ message: "Please enter a valid email address" })
+    .max(255, { message: "Email must be less than 255 characters" })
+});
 
 export default function ReportItem() {
   const [itemType, setItemType] = useState<"lost" | "found" | null>(null);
@@ -21,6 +46,7 @@ export default function ReportItem() {
     date: "",
     contactInfo: ""
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,18 +74,42 @@ export default function ReportItem() {
       return;
     }
 
+    // Clear previous errors
+    setErrors({});
+
+    // Validate form data
+    try {
+      itemSchema.parse(formData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const newErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            newErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setErrors(newErrors);
+        toast({
+          title: "Validation Error",
+          description: "Please check all required fields",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       const { error } = await supabase
         .from('items')
         .insert({
-          title: formData.title,
-          description: formData.description,
+          title: formData.title.trim(),
+          description: formData.description.trim(),
           category: formData.category,
-          location: formData.location,
+          location: formData.location.trim() || null,
           date: formData.date,
-          contact_info: formData.contactInfo,
+          contact_info: formData.contactInfo.trim(),
           status: itemType
         });
 
@@ -80,6 +130,7 @@ export default function ReportItem() {
         date: "",
         contactInfo: ""
       });
+      setErrors({});
       setItemType(null);
 
       // Navigate to browse page after short delay
@@ -164,8 +215,12 @@ export default function ReportItem() {
                     placeholder="e.g., iPhone 13 Pro - Blue"
                     value={formData.title}
                     onChange={(e) => handleInputChange("title", e.target.value)}
+                    maxLength={200}
                     required
                   />
+                  {errors.title && (
+                    <p className="text-sm text-destructive">{errors.title}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -176,14 +231,18 @@ export default function ReportItem() {
                     rows={4}
                     value={formData.description}
                     onChange={(e) => handleInputChange("description", e.target.value)}
+                    maxLength={1000}
                     required
                   />
+                  {errors.description && (
+                    <p className="text-sm text-destructive">{errors.description}</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -195,6 +254,9 @@ export default function ReportItem() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors.category && (
+                      <p className="text-sm text-destructive">{errors.category}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -204,22 +266,29 @@ export default function ReportItem() {
                       type="date"
                       value={formData.date}
                       onChange={(e) => handleInputChange("date", e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
                       required
                     />
+                    {errors.date && (
+                      <p className="text-sm text-destructive">{errors.date}</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="location">
-                    {itemType === "lost" ? "Last seen location" : "Found location"} *
+                    {itemType === "lost" ? "Last seen location" : "Found location"}
                   </Label>
                   <Input
                     id="location"
-                    placeholder="e.g., Main Library, 2nd floor"
+                    placeholder="e.g., Main Library, 2nd floor (optional)"
                     value={formData.location}
                     onChange={(e) => handleInputChange("location", e.target.value)}
-                    required
+                    maxLength={200}
                   />
+                  {errors.location && (
+                    <p className="text-sm text-destructive">{errors.location}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -230,8 +299,12 @@ export default function ReportItem() {
                     placeholder="your.email@university.edu"
                     value={formData.contactInfo}
                     onChange={(e) => handleInputChange("contactInfo", e.target.value)}
+                    maxLength={255}
                     required
                   />
+                  {errors.contactInfo && (
+                    <p className="text-sm text-destructive">{errors.contactInfo}</p>
+                  )}
                 </div>
 
                 <Button 

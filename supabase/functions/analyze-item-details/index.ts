@@ -15,11 +15,17 @@ serve(async (req) => {
   try {
     const { title, description, itemType } = await req.json();
 
-    const prompt = `You are an AI assistant helping students write better lost and found item posts. Analyze the following ${itemType} item details and provide:
+    const prompt = `You are an AI assistant helping students write better lost and found item posts.
 
+Carefully read both the item's title and especially the description.
+Your main job is to analyze the description for ownership clues, unique identifiers, completeness, clarity, and actionable details that help prove ownership or facilitate a successful claim or reunion.
+
+Examples of ownership clues: serial number, brand, model, receipts, unique marks, customizations, documents, etc.
+
+For the following ${itemType} item details, provide:
 1. A strength score (0-100) indicating how detailed and helpful the post is
-2. Specific suggestions to improve findability
-3. What's missing or could be better
+2. Specific suggestions to improve findability and ownership validation
+3. What's missing or could be better (focusing on ownership clues and actionable info)
 
 Title: "${title || 'Not provided'}"
 Description: "${description || 'Not provided'}"
@@ -34,7 +40,7 @@ Respond in JSON format:
 
 Consider these factors:
 - Does the title include key identifiers (brand, color, model)?
-- Does the description mention distinctive features?
+- Does the description mention ownership clues and distinctive features?
 - Is the location specific enough?
 - Are there unique identifying marks or characteristics?
 - Is the information clear and concise?
@@ -43,7 +49,8 @@ Score guidelines:
 - 0-30: Very basic, missing crucial details
 - 31-60: Some details but needs improvement
 - 61-80: Good details, minor improvements possible
-- 81-100: Excellent, comprehensive details`;
+- 81-100: Excellent, comprehensive details
+`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

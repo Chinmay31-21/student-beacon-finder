@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, CheckCircle, Lightbulb, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle, Lightbulb, Sparkles, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -56,6 +56,11 @@ export default function ReportItem() {
     missingDetails: string[];
   } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // --- Prediction AI Mode ---
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [prediction, setPrediction] = useState<string | null>(null);
+
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -195,6 +200,56 @@ export default function ReportItem() {
     }
   };
 
+  // --- Prediction AI Mode function ---
+  const handlePredictDescription = async () => {
+    setIsPredicting(true);
+    setPrediction(null);
+
+    try {
+      // You can use the same analyze-item-details function but with a different prompt, or create a dedicated endpoint
+      // For demonstration, we'll use analyze-item-details and extract a "suggested description"
+      const { data, error } = await supabase.functions.invoke('analyze-item-details', {
+        body: {
+          title: formData.title,
+          description: formData.description,
+          itemType,
+          mode: "predict" // You can handle this in your backend prompt if needed
+        }
+      });
+
+      if (error) throw error;
+      // If the backend returns a "predictedDescription", use it; otherwise, fallback to suggestions.
+      setPrediction(data.predictedDescription || data.suggestions?.join(" ") || null);
+      toast({
+        title: "AI Prediction Complete",
+        description: "Check the suggested description below.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error predicting description:', error);
+      toast({
+        title: "AI Prediction Error",
+        description: "Could not generate a predicted description.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
+  // Autofill handler: fills the description field with the prediction
+  const handleAutofill = () => {
+    if (prediction) {
+      setFormData(prev => ({ ...prev, description: prediction }));
+      setPrediction(null);
+      toast({
+        title: "Description Autofilled",
+        description: "You can further edit or submit your report.",
+        variant: "default"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -280,6 +335,39 @@ export default function ReportItem() {
                   />
                   {errors.description && (
                     <p className="text-sm text-destructive">{errors.description}</p>
+                  )}
+
+                  {/* Prediction AI Mode UI */}
+                  <div className="flex flex-col md:flex-row gap-2 mt-2">
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isPredicting || !formData.title}
+                      onClick={handlePredictDescription}
+                      className="flex items-center gap-2"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      {isPredicting ? "Predicting..." : "Suggest Description"}
+                    </Button>
+                    {prediction && (
+                      <Button 
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleAutofill}
+                        className="flex items-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Autofill Description
+                      </Button>
+                    )}
+                  </div>
+                  {prediction && (
+                    <div className="mt-2 p-2 rounded-md bg-primary/5 border border-primary/20 text-sm text-muted-foreground">
+                      <strong>AI Suggested Description:</strong>
+                      <div className="mt-1 whitespace-pre-line">{prediction}</div>
+                    </div>
                   )}
                 </div>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { AlertCircle, CheckCircle, Lightbulb, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -48,6 +49,13 @@ export default function ReportItem() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    score: number;
+    suggestions: string[];
+    strengths: string[];
+    missingDetails: string[];
+  } | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -149,6 +157,42 @@ export default function ReportItem() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Debounced AI analysis
+  useEffect(() => {
+    if (!formData.title && !formData.description) {
+      setAiAnalysis(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      analyzeDetails();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [formData.title, formData.description, itemType]);
+
+  const analyzeDetails = async () => {
+    if (!itemType || (!formData.title && !formData.description)) return;
+
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-item-details', {
+        body: {
+          title: formData.title,
+          description: formData.description,
+          itemType
+        }
+      });
+
+      if (error) throw error;
+      setAiAnalysis(data);
+    } catch (error) {
+      console.error('Error analyzing details:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -306,6 +350,78 @@ export default function ReportItem() {
                     <p className="text-sm text-destructive">{errors.contactInfo}</p>
                   )}
                 </div>
+
+                {/* AI Analysis Section */}
+                {aiAnalysis && (
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                          <CardTitle className="text-lg">AI Analysis</CardTitle>
+                        </div>
+                        <Badge variant={aiAnalysis.score >= 70 ? "default" : aiAnalysis.score >= 40 ? "secondary" : "destructive"}>
+                          {aiAnalysis.score}% Complete
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Detail Strength</span>
+                          <span className="text-sm text-muted-foreground">{aiAnalysis.score}/100</span>
+                        </div>
+                        <Progress value={aiAnalysis.score} className="h-2" />
+                      </div>
+
+                      {aiAnalysis.strengths.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            <span className="text-sm font-medium">Good Details:</span>
+                          </div>
+                          <ul className="space-y-1 ml-6">
+                            {aiAnalysis.strengths.map((strength, i) => (
+                              <li key={i} className="text-sm text-muted-foreground list-disc">{strength}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {aiAnalysis.suggestions.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Lightbulb className="w-4 h-4 text-amber-600" />
+                            <span className="text-sm font-medium">Suggestions to Improve:</span>
+                          </div>
+                          <ul className="space-y-1 ml-6">
+                            {aiAnalysis.suggestions.map((suggestion, i) => (
+                              <li key={i} className="text-sm text-muted-foreground list-disc">{suggestion}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {aiAnalysis.missingDetails.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertCircle className="w-4 h-4 text-orange-600" />
+                            <span className="text-sm font-medium">Missing Details:</span>
+                          </div>
+                          <ul className="space-y-1 ml-6">
+                            {aiAnalysis.missingDetails.map((detail, i) => (
+                              <li key={i} className="text-sm text-muted-foreground list-disc">{detail}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {isAnalyzing && (
+                        <p className="text-sm text-muted-foreground italic">Analyzing your details...</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 <Button 
                   type="submit"

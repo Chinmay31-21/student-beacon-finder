@@ -13,6 +13,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
+const analyzeDetails = async () => {
+  if (!itemType || (!formData.title && !formData.description)) return;
+
+  setIsAnalyzing(true);
+  try {
+    const { data, error } = await supabase.functions.invoke('analyze-item-details', {
+      body: {
+        title: formData.title,
+        description: formData.description, // <-- This ensures the Description is sent for AI analysis
+        itemType
+      }
+    });
+
+    if (error) throw error;
+    setAiAnalysis(data);
+  } catch (error) {
+    console.error('Error analyzing details:', error);
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
+
 // Validation schema
 const itemSchema = z.object({
   title: z.string()

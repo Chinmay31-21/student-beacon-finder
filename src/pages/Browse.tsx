@@ -1,74 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ItemCard, ItemData } from "@/components/ItemCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter } from "lucide-react";
-
-// Mock data - in a real app, this would come from an API
-const allItems: ItemData[] = [
-  {
-    id: "1",
-    title: "iPhone 13 Pro - Blue",
-    description: "Found in the library on the second floor near the study tables. Has a clear case with some scratches.",
-    category: "Electronics",
-    location: "Main Library",
-    date: "2024-01-15",
-    contactInfo: "library@university.edu",
-    status: "found"
-  },
-  {
-    id: "2", 
-    title: "MacBook Pro with Stickers",
-    description: "Lost silver MacBook Pro 13-inch with university and coding stickers. Very important for studies!",
-    category: "Electronics",
-    location: "Computer Science Building",
-    date: "2024-01-14",
-    contactInfo: "student@university.edu",
-    status: "lost"
-  },
-  {
-    id: "3",
-    title: "Black Jansport Backpack",
-    description: "Black backpack with water bottle and textbooks inside. Found near the cafeteria.",
-    category: "Bags",
-    location: "Student Union",
-    date: "2024-01-13",
-    contactInfo: "security@university.edu",
-    status: "found"
-  },
-  {
-    id: "4",
-    title: "Chemistry Textbook",
-    description: "Organic Chemistry textbook, 3rd edition. Has highlighting and notes inside.",
-    category: "Books",
-    location: "Science Building",
-    date: "2024-01-12",
-    contactInfo: "science@university.edu",
-    status: "found"
-  },
-  {
-    id: "5",
-    title: "Blue Nike Hoodie",
-    description: "Lost blue Nike hoodie size M. Has a small stain on the front pocket.",
-    category: "Clothing",
-    location: "Gymnasium",
-    date: "2024-01-11",
-    contactInfo: "athletics@university.edu",
-    status: "lost"
-  },
-  {
-    id: "6",
-    title: "Car Keys with Subaru Keychain",
-    description: "Found car keys with Subaru keychain and student ID attached.",
-    category: "Keys",
-    location: "Parking Lot B",
-    date: "2024-01-10",
-    contactInfo: "parking@university.edu",
-    status: "found"
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const categories = [
   "All Categories",
@@ -86,6 +24,47 @@ export default function Browse() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [statusFilter, setStatusFilter] = useState<"all" | "lost" | "found">("all");
+  const [allItems, setAllItems] = useState<ItemData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedItems: ItemData[] = data.map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        location: item.location,
+        date: item.date,
+        contactInfo: item.contact_info,
+        status: item.status as "lost" | "found"
+      }));
+
+      setAllItems(formattedItems);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load items. Please refresh the page.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredItems = allItems.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -189,7 +168,12 @@ export default function Browse() {
         </div>
 
         {/* Items Grid */}
-        {filteredItems.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">⏳</div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">Loading items...</h3>
+          </div>
+        ) : filteredItems.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredItems.map((item) => (
               <ItemCard

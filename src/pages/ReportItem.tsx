@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 export default function ReportItem() {
   const [itemType, setItemType] = useState<"lost" | "found" | null>(null);
@@ -19,7 +21,9 @@ export default function ReportItem() {
     date: "",
     contactInfo: ""
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const categories = [
     "Electronics",
@@ -32,7 +36,7 @@ export default function ReportItem() {
     "Other"
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!itemType) {
@@ -44,23 +48,52 @@ export default function ReportItem() {
       return;
     }
 
-    // Here you would typically send the data to your backend
-    toast({
-      title: "Item reported successfully!",
-      description: `Your ${itemType} item has been added to the database.`,
-      variant: "default"
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setFormData({
-      title: "",
-      description: "",
-      category: "",
-      location: "",
-      date: "",
-      contactInfo: ""
-    });
-    setItemType(null);
+    try {
+      const { error } = await supabase
+        .from('items')
+        .insert({
+          title: formData.title,
+          description: formData.description,
+          category: formData.category,
+          location: formData.location,
+          date: formData.date,
+          contact_info: formData.contactInfo,
+          status: itemType
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Item reported successfully!",
+        description: `Your ${itemType} item has been added to the database.`,
+        variant: "default"
+      });
+
+      // Reset form
+      setFormData({
+        title: "",
+        description: "",
+        category: "",
+        location: "",
+        date: "",
+        contactInfo: ""
+      });
+      setItemType(null);
+
+      // Navigate to browse page after short delay
+      setTimeout(() => navigate('/browse'), 1500);
+    } catch (error) {
+      console.error('Error submitting item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to report item. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -206,8 +239,9 @@ export default function ReportItem() {
                   variant={itemType === "lost" ? "accent" : "secondary"}
                   size="lg"
                   className="w-full"
+                  disabled={isSubmitting}
                 >
-                  {itemType === "lost" ? "Report Lost Item" : "Report Found Item"}
+                  {isSubmitting ? "Submitting..." : itemType === "lost" ? "Report Lost Item" : "Report Found Item"}
                 </Button>
               </form>
             </CardContent>

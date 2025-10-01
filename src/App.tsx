@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Browse from "./pages/Browse";
 import ReportItem from "./pages/ReportItem";
 import NotFound from "./pages/NotFound";
+import { StudentDashboard } from './components/StudentDashboard';
 
 const queryClient = new QueryClient();
 
